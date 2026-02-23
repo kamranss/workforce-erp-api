@@ -1,0 +1,20 @@
+{
+  "name": "archbuild-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Serverless backend for ArchBuild (Vercel Functions + MongoDB)",
+  "main": "api/health.js",
+  "scripts": {
+    "lint": "echo \"No linter configured yet\"",
+    "seed:superadmin": "node scripts/seed-superadmin.js",
+    "seed:users": "node scripts/seed-initial-users.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.19.1"
+  }
+}

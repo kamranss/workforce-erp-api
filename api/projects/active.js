@@ -1,0 +1,87 @@
+const mongoose = require('mongoose');
+const { connectToDatabase } = require('../../src/db/mongo');
+const { withErrorHandling } = require('../../src/helpers/handler');
+const { toProjectResponse } = require('../../src/helpers/projects');
+const { isAdminOrSuperAdmin } = require('../../src/helpers/roles');
+const { decodeCursor, encodeCursor, parseLimit } = require('../../src/helpers/users');
+const { requireAuth } = require('../../src/middleware/auth');
+const { sendError, sendMethodNotAllowed, sendSuccess } = require('../../src/helpers/response');
+const { Project, PROJECT_STATUSES } = require('../../src/models/Project');
+
+async function handler(req, res) {
+  if (req.method !== 'GET') {
+    return sendMethodNotAllowed(res, ['GET']);
+  }
+
+  if (!isAdminOrSuperAdmin(req.auth.role)) {
+    return sendError(res, 403, 'FORBIDDEN', 'Only admin or superAdmin can access this endpoint.');
+  }
+
+  await connectToDatabase();
+
+  const limit = parseLimit(req.query.limit, 20, 100);
+  const cursor = decodeCursor(req.query.cursor);
+  if (req.query.cursor && !cursor) {
+    return sendError(res, 400, 'INVALID_CURSOR', 'cursor is invalid.');
+  }
+
+  const query = {
+    isActive: true
+  };
+
+  if (req.query.status !== undefined) {
+    if (!PROJECT_STATUSES.includes(req.query.status)) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'status must be one of: waiting, ongoing, finished, canceled.');
+    }
+    query.status = req.query.status;
+  }
+
+  if (req.query.locationKey !== undefined) {
+    const locationKey = String(req.query.locationKey).trim();
+    if (!locationKey) {
+      return sendError(res, 400, 'VALIDATION_ERROR', 'locationKey must be a non-empty string when provided.');
+    }
+    query.locationKey = locationKey;
+  }
+
+  if (req.query.q !== undefined) {
+    const q = String(req.query.q).trim();
+    if (q) {
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+      query.$or = [
+        { description: regex },
+        { 'address.raw': regex },
+        { 'address.normalized': regex },
+        { quoteNumber: regex }
+      ];
+    }
+  }
+
+  if (cursor) {
+    const cursorCondition = {
+      $or: [
+        { createdAt: { $lt: cursor.createdAt } },
+        { createdAt: cursor.createdAt, _id: { $lt: new mongoose.Types.ObjectId(cursor.id) } }
+      ]
+    };
+
+    query.$and = [...(query.$and || []), cursorCondition];
+  }
+
+  const docs = await Project.find(query)
+    .populate('customerId', 'fullName address email phone')
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(limit + 1)
+    .exec();
+
+  const hasNextPage = docs.length > limit;
+  const pageItems = hasNextPage ? docs.slice(0, limit) : docs;
+
+  return sendSuccess(res, {
+    items: pageItems.map(toProjectResponse),
+    nextCursor: hasNextPage ? encodeCursor(docs[limit - 1]) : null
+  });
+}
+
+module.exports = withErrorHandling(requireAuth(handler));
