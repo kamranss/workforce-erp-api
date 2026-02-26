@@ -3,22 +3,34 @@ function toExpenseResponse(doc) {
     doc.projectId && typeof doc.projectId === 'object' && doc.projectId._id
       ? doc.projectId
       : null;
+  const scope = doc.scope || 'project';
+  const type = doc.type || 'unknown';
+  const scopeLabel = scope === 'company' ? 'Company Based' : 'Project Based';
+  const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
 
   return {
     id: String(doc._id),
-    scope: doc.scope || 'project',
+    scope,
+    expenseScope: scope,
+    expenseScopeLabel: scopeLabel,
     projectId: projectDoc ? String(projectDoc._id) : doc.projectId ? String(doc.projectId) : null,
     project: projectDoc
       ? {
           id: String(projectDoc._id),
           description: projectDoc.description,
-          status: projectDoc.status
+          status: projectDoc.status,
+          address: {
+            raw: projectDoc.address?.raw || null,
+            normalized: projectDoc.address?.normalized || null
+          }
         }
       : null,
-    type: doc.type,
+    type,
+    expenseCategory: type,
+    expenseCategoryLabel: typeLabel,
     amount: doc.amount,
     spentAt: doc.spentAt,
-    notes: doc.notes,
+    notes: doc.notes || null,
     createdBy: String(doc.createdBy),
     isDeleted: doc.isDeleted === true,
     deletedAt: doc.deletedAt,

@@ -78,6 +78,10 @@ const timeEntrySchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    edited: {
+      type: Boolean,
+      default: false
+    },
     isDeleted: {
       type: Boolean,
       default: false

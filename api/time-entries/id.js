@@ -151,6 +151,9 @@ async function handler(req, res) {
     entry.notes = payload.notes;
   }
 
+  // Mark explicit admin/superAdmin edits (including force checkout) for UI highlighting.
+  entry.edited = true;
+
   if (entry.clockOutAt === null) {
     const openEntry = await TimeEntry.findOne({
       userId: entry.userId,

@@ -85,6 +85,7 @@ function toTimeEntryResponse(entryDoc) {
     addrIn: entryDoc.addrIn,
     addrOut: entryDoc.addrOut,
     notes: entryDoc.notes,
+    edited: entryDoc.edited === true,
     isDeleted: entryDoc.isDeleted === true,
     deletedAt: entryDoc.deletedAt,
     deletedBy: entryDoc.deletedBy ? String(entryDoc.deletedBy) : null,
@@ -245,16 +246,15 @@ async function recomputeDailyBreakAllocation({
     entry.minutesWorked = entry.rawMinutes;
   }
 
-  const totalRawMinutes = closedEntries.reduce(
-    (sum, entry) => sum + (entry.rawMinutes || 0),
-    0
-  );
-
-  if (totalRawMinutes > 240 && closedEntries.length > 0) {
-    const lastClosedEntry = closedEntries[closedEntries.length - 1];
-    const allocatedBreak = Math.min(60, lastClosedEntry.rawMinutes || 0);
-    lastClosedEntry.breakMinutes = allocatedBreak;
-    lastClosedEntry.minutesWorked = Math.max(0, (lastClosedEntry.rawMinutes || 0) - allocatedBreak);
+  if (closedEntries.length > 0) {
+    // Apply lunch deduction once per local day to the first closed entry only.
+    const firstClosedEntry = closedEntries[0];
+    const firstRawMinutes = firstClosedEntry.rawMinutes || 0;
+    if (firstRawMinutes >= 180) {
+      const allocatedBreak = Math.min(60, firstRawMinutes);
+      firstClosedEntry.breakMinutes = allocatedBreak;
+      firstClosedEntry.minutesWorked = Math.max(0, firstRawMinutes - allocatedBreak);
+    }
   }
 
   await Promise.all(dayEntries.map((entry) => entry.save()));

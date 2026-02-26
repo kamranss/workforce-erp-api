@@ -32,7 +32,7 @@ async function handler(req, res) {
   }
 
   await connectToDatabase();
-  const expense = await Expense.findById(id).populate('projectId', 'description status').exec();
+  const expense = await Expense.findById(id).populate('projectId', 'description status address').exec();
   if (!expense) {
     return sendError(res, 404, 'EXPENSE_NOT_FOUND', 'Expense not found.');
   }
@@ -102,8 +102,6 @@ async function handler(req, res) {
   }
   if (payload.projectId !== undefined) {
     expense.projectId = payload.projectId;
-  } else if (payload.scope === 'company' && payload.projectId === undefined) {
-    expense.projectId = null;
   }
   if (payload.amount !== undefined) {
     expense.amount = payload.amount;
@@ -116,7 +114,9 @@ async function handler(req, res) {
   }
 
   await expense.save();
-  const updatedExpense = await Expense.findById(expense._id).populate('projectId', 'description status').exec();
+  const updatedExpense = await Expense.findById(expense._id)
+    .populate('projectId', 'description status address')
+    .exec();
   return sendSuccess(res, toExpenseResponse(updatedExpense));
 }
 

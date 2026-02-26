@@ -93,7 +93,7 @@ async function handler(req, res) {
     }
 
     const items = await Payment.find(query)
-      .populate('userId', 'name surname')
+      .populate('userId', 'name surname paymentOption paymentAmount')
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit + 1)
       .exec();
@@ -131,7 +131,10 @@ async function handler(req, res) {
     createdBy: req.auth.userId
   });
 
-  return sendSuccess(res, toPaymentResponse(payment), 201);
+  const createdPayment = await Payment.findById(payment._id)
+    .populate('userId', 'name surname paymentOption paymentAmount')
+    .exec();
+  return sendSuccess(res, toPaymentResponse(createdPayment), 201);
 }
 
 module.exports = withErrorHandling(requireAuth(handler));

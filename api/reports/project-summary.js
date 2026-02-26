@@ -80,7 +80,16 @@ async function handler(req, res) {
       {
         $group: {
           _id: null,
-          expenseTotal: { $sum: '$amount' }
+          projectExpenseTotal: {
+            $sum: {
+              $cond: [{ $eq: ['$scope', 'project'] }, { $ifNull: ['$amount', 0] }, 0]
+            }
+          },
+          companyProjectRelatedExpenseTotal: {
+            $sum: {
+              $cond: [{ $eq: ['$scope', 'company'] }, { $ifNull: ['$amount', 0] }, 0]
+            }
+          }
         }
       }
     ])
@@ -88,8 +97,12 @@ async function handler(req, res) {
 
   const laborMinutes = valueOrZero(laborAgg[0]?.laborMinutes);
   const laborEarnings = valueOrZero(laborAgg[0]?.laborEarnings);
-  const expenseTotal = valueOrZero(expenseAgg[0]?.expenseTotal);
-  const netCost = laborEarnings + expenseTotal;
+  const projectExpenseTotal = valueOrZero(expenseAgg[0]?.projectExpenseTotal);
+  const companyProjectRelatedExpenseTotal = valueOrZero(expenseAgg[0]?.companyProjectRelatedExpenseTotal);
+  const expenseTotal = projectExpenseTotal;
+  const expenseTotalWithCompanyProjectRelated = projectExpenseTotal + companyProjectRelatedExpenseTotal;
+  const netCost = laborEarnings + projectExpenseTotal;
+  const netCostWithCompanyProjectRelated = laborEarnings + expenseTotalWithCompanyProjectRelated;
 
   return sendSuccess(res, {
     projectId: String(projectId),
@@ -104,7 +117,11 @@ async function handler(req, res) {
     laborMinutes,
     laborEarnings,
     expenseTotal,
-    netCost
+    projectExpenseTotal,
+    companyProjectRelatedExpenseTotal,
+    expenseTotalWithCompanyProjectRelated,
+    netCost,
+    netCostWithCompanyProjectRelated
   });
 }
 

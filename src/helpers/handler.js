@@ -7,19 +7,10 @@ const LOCAL_FALLBACK_ORIGINS = [
   'http://localhost:3003'
 ];
 
-function normalizeOrigin(value) {
-  if (!value || typeof value !== 'string') {
-    return null;
-  }
-
-  // Origin header never includes a path; normalize accidental trailing slash.
-  return value.trim().replace(/\/+$/, '');
-}
-
 function getAllowedOrigins() {
   const fromEnv = String(process.env.ALLOWED_ORIGINS || '')
     .split(',')
-    .map((item) => normalizeOrigin(item))
+    .map((item) => item.trim())
     .filter(Boolean);
 
   const origins = fromEnv.length > 0 ? fromEnv : LOCAL_FALLBACK_ORIGINS;
@@ -28,7 +19,7 @@ function getAllowedOrigins() {
 
 function applyCorsHeaders(req, res) {
   const allowedOrigins = getAllowedOrigins();
-  const origin = normalizeOrigin(req.headers.origin);
+  const origin = req.headers.origin;
   if (origin && allowedOrigins.has(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }

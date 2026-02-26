@@ -132,7 +132,6 @@ async function handler(req, res) {
       {
         $match: {
           isDeleted: { $ne: true },
-          projectId: { $ne: null },
           spentAt: {
             $gte: range.from,
             $lte: range.to
@@ -150,16 +149,73 @@ async function handler(req, res) {
       {
         $unwind: {
           path: '$projectDoc',
-          preserveNullAndEmptyArrays: false
+          preserveNullAndEmptyArrays: true
         }
       },
       {
         $group: {
           _id: null,
-          totalExpenses: { $sum: { $ifNull: ['$amount', 0] } },
-          ongoingExpenses: {
+          totalProjectExpenses: {
             $sum: {
-              $cond: [{ $eq: ['$projectDoc.status', 'ongoing'] }, { $ifNull: ['$amount', 0] }, 0]
+              $cond: [
+                {
+                  $and: [{ $eq: ['$scope', 'project'] }, { $ne: ['$projectId', null] }]
+                },
+                { $ifNull: ['$amount', 0] },
+                0
+              ]
+            }
+          },
+          ongoingProjectExpenses: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$scope', 'project'] },
+                    { $ne: ['$projectId', null] },
+                    { $eq: ['$projectDoc.status', 'ongoing'] }
+                  ]
+                },
+                { $ifNull: ['$amount', 0] },
+                0
+              ]
+            }
+          },
+          totalCompanyProjectRelatedExpenses: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [{ $eq: ['$scope', 'company'] }, { $ne: ['$projectId', null] }]
+                },
+                { $ifNull: ['$amount', 0] },
+                0
+              ]
+            }
+          },
+          ongoingCompanyProjectRelatedExpenses: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$scope', 'company'] },
+                    { $ne: ['$projectId', null] },
+                    { $eq: ['$projectDoc.status', 'ongoing'] }
+                  ]
+                },
+                { $ifNull: ['$amount', 0] },
+                0
+              ]
+            }
+          },
+          totalCompanyGeneralExpenses: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [{ $eq: ['$scope', 'company'] }, { $eq: ['$projectId', null] }]
+                },
+                { $ifNull: ['$amount', 0] },
+                0
+              ]
             }
           }
         }
@@ -178,12 +234,23 @@ async function handler(req, res) {
   const ongoingLaborMinutes = valueOrZero(labor.ongoingLaborMinutes);
   const totalLaborEarnings = valueOrZero(labor.totalLaborEarnings);
   const ongoingLaborEarnings = valueOrZero(labor.ongoingLaborEarnings);
-  const totalExpenses = valueOrZero(expenses.totalExpenses);
-  const ongoingExpenses = valueOrZero(expenses.ongoingExpenses);
-  const totalConsumed = totalLaborEarnings + totalExpenses;
-  const ongoingConsumed = ongoingLaborEarnings + ongoingExpenses;
+  const totalProjectExpenses = valueOrZero(expenses.totalProjectExpenses);
+  const ongoingProjectExpenses = valueOrZero(expenses.ongoingProjectExpenses);
+  const totalCompanyProjectRelatedExpenses = valueOrZero(expenses.totalCompanyProjectRelatedExpenses);
+  const ongoingCompanyProjectRelatedExpenses = valueOrZero(expenses.ongoingCompanyProjectRelatedExpenses);
+  const totalCompanyGeneralExpenses = valueOrZero(expenses.totalCompanyGeneralExpenses);
+  const totalExpenses = totalProjectExpenses;
+  const ongoingExpenses = ongoingProjectExpenses;
+  const totalConsumed = totalLaborEarnings + totalProjectExpenses;
+  const ongoingConsumed = ongoingLaborEarnings + ongoingProjectExpenses;
+  const totalConsumedWithCompanyProjectRelated = totalConsumed + totalCompanyProjectRelatedExpenses;
+  const ongoingConsumedWithCompanyProjectRelated = ongoingConsumed + ongoingCompanyProjectRelatedExpenses;
   const totalRemainingFromQuote = totalQuoteAmount - totalConsumed;
   const ongoingRemainingFromQuote = ongoingQuoteAmount - ongoingConsumed;
+  const totalRemainingFromQuoteWithCompanyProjectRelated =
+    totalQuoteAmount - totalConsumedWithCompanyProjectRelated;
+  const ongoingRemainingFromQuoteWithCompanyProjectRelated =
+    ongoingQuoteAmount - ongoingConsumedWithCompanyProjectRelated;
 
   return sendSuccess(res, {
     range: {
@@ -204,10 +271,19 @@ async function handler(req, res) {
       ongoingLaborEarnings,
       totalExpenses,
       ongoingExpenses,
+      totalProjectExpenses,
+      ongoingProjectExpenses,
+      totalCompanyProjectRelatedExpenses,
+      ongoingCompanyProjectRelatedExpenses,
+      totalCompanyGeneralExpenses,
       totalConsumed,
       ongoingConsumed,
+      totalConsumedWithCompanyProjectRelated,
+      ongoingConsumedWithCompanyProjectRelated,
       totalRemainingFromQuote,
-      ongoingRemainingFromQuote
+      ongoingRemainingFromQuote,
+      totalRemainingFromQuoteWithCompanyProjectRelated,
+      ongoingRemainingFromQuoteWithCompanyProjectRelated
     }
   });
 }

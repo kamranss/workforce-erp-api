@@ -12,6 +12,7 @@ const {
 } = require('../../src/helpers/users');
 const { requireAuth } = require('../../src/middleware/auth');
 const { sendMethodNotAllowed, sendError, sendSuccess } = require('../../src/helpers/response');
+const { TimeEntry } = require('../../src/models/TimeEntry');
 const { User } = require('../../src/models/User');
 const { validateCreateUserPayload, normalizeEmail } = require('../../src/validation/userValidation');
 
@@ -27,7 +28,7 @@ async function handler(req, res) {
   await connectToDatabase();
 
   if (req.method === 'GET') {
-    const limit = parseLimit(req.query.limit, 20, 100);
+    const limit = parseLimit(req.query.limit, 10, 100);
     const cursor = decodeCursor(req.query.cursor);
 
     if (req.query.cursor && !cursor) {
@@ -35,14 +36,39 @@ async function handler(req, res) {
     }
 
     const query = {};
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (q) {
+      const tokens = q
+        .split(/\s+/)
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .slice(0, 6);
+
+      if (tokens.length > 0) {
+        query.$and = [
+          ...(query.$and || []),
+          ...tokens.map((token) => {
+            const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escaped, 'i');
+            return {
+              $or: [{ name: regex }, { surname: regex }]
+            };
+          })
+        ];
+      }
+    }
+
     if (cursor) {
-      query.$or = [
-        { createdAt: { $lt: cursor.createdAt } },
-        {
-          createdAt: cursor.createdAt,
-          _id: { $lt: new mongoose.Types.ObjectId(cursor.id) }
-        }
-      ];
+      const cursorCondition = {
+        $or: [
+          { createdAt: { $lt: cursor.createdAt } },
+          {
+            createdAt: cursor.createdAt,
+            _id: { $lt: new mongoose.Types.ObjectId(cursor.id) }
+          }
+        ]
+      };
+      query.$and = [...(query.$and || []), cursorCondition];
     }
 
     const users = await User.find(query)
@@ -51,7 +77,51 @@ async function handler(req, res) {
       .exec();
 
     const hasNextPage = users.length > limit;
-    const items = (hasNextPage ? users.slice(0, limit) : users).map(toUserResponse);
+    const pageUsers = hasNextPage ? users.slice(0, limit) : users;
+    const pageUserIds = pageUsers.map((user) => user._id);
+
+    const firstEntryRows = pageUserIds.length
+      ? await TimeEntry.aggregate([
+          {
+            $match: {
+              isDeleted: { $ne: true },
+              userId: { $in: pageUserIds },
+              clockInAt: { $ne: null }
+            }
+          },
+          {
+            $group: {
+              _id: '$userId',
+              firstEntryAt: { $min: '$clockInAt' }
+            }
+          }
+        ])
+      : [];
+    const firstEntryByUserId = new Map(
+      firstEntryRows.map((row) => [String(row._id), row.firstEntryAt || null])
+    );
+
+    const items = pageUsers.map((userDoc) => {
+      const base = toUserResponse(userDoc);
+      const paymentAmount = Number(base.paymentAmount || 0);
+      const paymentOption = base.paymentOption || null;
+      const paymentRateLabel =
+        paymentOption === 'hourly'
+          ? `$${paymentAmount.toFixed(2)}/hr`
+          : paymentOption === 'monthly'
+          ? `$${paymentAmount.toFixed(2)}/month`
+          : `$${paymentAmount.toFixed(2)}`;
+      const firstEntryAt = firstEntryByUserId.get(String(userDoc._id)) || null;
+
+      return {
+        ...base,
+        paymentMethod: paymentOption,
+        paymentRate: paymentAmount,
+        paymentRateLabel,
+        firstEntryAt,
+        startDate: firstEntryAt
+      };
+    });
 
     const nextCursor = hasNextPage ? encodeCursor(users[limit - 1]) : null;
     return sendSuccess(res, {

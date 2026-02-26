@@ -3,6 +3,16 @@ function toPaymentResponse(doc) {
     doc.userId && typeof doc.userId === 'object' && doc.userId._id
       ? doc.userId
       : null;
+  const paymentOption = userDoc?.paymentOption || null;
+  const paymentAmount = typeof userDoc?.paymentAmount === 'number' ? userDoc.paymentAmount : null;
+  const paymentAmountLabel =
+    paymentAmount === null
+      ? null
+      : paymentOption === 'hourly'
+      ? `$${Number(paymentAmount).toFixed(2)}/hr`
+      : paymentOption === 'monthly'
+      ? `$${Number(paymentAmount).toFixed(2)}/month`
+      : `$${Number(paymentAmount).toFixed(2)}`;
 
   return {
     id: String(doc._id),
@@ -11,9 +21,15 @@ function toPaymentResponse(doc) {
       ? {
           id: String(userDoc._id),
           name: userDoc.name,
-          surname: userDoc.surname
+          surname: userDoc.surname,
+          paymentOption,
+          paymentAmount,
+          paymentAmountLabel
         }
       : null,
+    userPaymentOption: paymentOption,
+    userPaymentAmount: paymentAmount,
+    userPaymentAmountLabel: paymentAmountLabel,
     amount: doc.amount,
     paidAt: doc.paidAt,
     method: doc.method,

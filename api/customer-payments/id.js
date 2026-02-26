@@ -1,13 +1,17 @@
 const { connectToDatabase } = require('../../src/db/mongo');
+const { toCustomerPaymentResponse } = require('../../src/helpers/customerPayments');
 const { withErrorHandling } = require('../../src/helpers/handler');
-const { toPaymentResponse } = require('../../src/helpers/payments');
-const { isAdminOrSuperAdmin, isSuperAdmin } = require('../../src/helpers/roles');
+const { isAdminOrSuperAdmin } = require('../../src/helpers/roles');
 const { isValidObjectId } = require('../../src/helpers/timeEntries');
 const { parseJsonBody } = require('../../src/helpers/users');
 const { requireAuth } = require('../../src/middleware/auth');
 const { sendError, sendMethodNotAllowed, sendSuccess } = require('../../src/helpers/response');
-const { Payment } = require('../../src/models/Payment');
-const { validatePatchPaymentPayload } = require('../../src/validation/paymentValidation');
+const { CustomerPayment } = require('../../src/models/CustomerPayment');
+const { Customer } = require('../../src/models/Customer');
+const { Project } = require('../../src/models/Project');
+const {
+  validatePatchCustomerPaymentPayload
+} = require('../../src/validation/customerPaymentValidation');
 
 function getRequestedId(req) {
   return typeof req.query.id === 'string' && req.query.id ? req.query.id : null;
@@ -19,7 +23,12 @@ async function handler(req, res) {
   }
 
   if (!isAdminOrSuperAdmin(req.auth.role)) {
-    return sendError(res, 403, 'FORBIDDEN', 'Only admin or superAdmin can access this endpoint.');
+    return sendError(
+      res,
+      403,
+      'FORBIDDEN',
+      'Only admin or superAdmin can access this endpoint.'
+    );
   }
 
   const id = getRequestedId(req);
@@ -32,28 +41,24 @@ async function handler(req, res) {
   }
 
   await connectToDatabase();
-  const payment = await Payment.findById(id)
-    .populate('userId', 'name surname paymentOption paymentAmount')
+  const payment = await CustomerPayment.findById(id)
+    .populate('projectId', 'description address')
+    .populate('customerId', 'fullName address email phone')
     .exec();
-
   if (!payment) {
-    return sendError(res, 404, 'PAYMENT_NOT_FOUND', 'Payment not found.');
+    return sendError(res, 404, 'CUSTOMER_PAYMENT_NOT_FOUND', 'Customer payment not found.');
   }
 
   const includeDeleted = req.query.includeDeleted === 'true';
   if (payment.isDeleted === true && !includeDeleted) {
-    return sendError(res, 404, 'PAYMENT_NOT_FOUND', 'Payment not found.');
+    return sendError(res, 404, 'CUSTOMER_PAYMENT_NOT_FOUND', 'Customer payment not found.');
   }
 
   if (req.method === 'GET') {
-    return sendSuccess(res, toPaymentResponse(payment));
+    return sendSuccess(res, toCustomerPaymentResponse(payment));
   }
 
   if (req.method === 'DELETE') {
-    if (!isSuperAdmin(req.auth.role)) {
-      return sendError(res, 403, 'FORBIDDEN', 'Only superAdmin can delete payments.');
-    }
-
     payment.isDeleted = true;
     payment.deletedAt = new Date();
     payment.deletedBy = req.auth.userId;
@@ -66,29 +71,45 @@ async function handler(req, res) {
     return sendError(res, 400, 'INVALID_JSON', 'Request body must be valid JSON.');
   }
 
-  const details = validatePatchPaymentPayload(payload);
+  const details = validatePatchCustomerPaymentPayload(payload);
   if (details.length > 0) {
-    return sendError(res, 400, 'VALIDATION_ERROR', 'Invalid payment update payload.', details);
+    return sendError(
+      res,
+      400,
+      'VALIDATION_ERROR',
+      'Invalid customer payment update payload.',
+      details
+    );
+  }
+
+  if (payload.projectId !== undefined) {
+    const project = await Project.findById(payload.projectId).select('_id customerId').exec();
+    if (!project) {
+      return sendError(res, 404, 'PROJECT_NOT_FOUND', 'Project not found.');
+    }
+    payment.projectId = project._id;
+    payment.customerId = project.customerId || null;
   }
 
   if (payload.amount !== undefined) {
     payment.amount = payload.amount;
   }
+  if (payload.type !== undefined) {
+    payment.type = payload.type;
+  }
   if (payload.paidAt !== undefined) {
     payment.paidAt = new Date(payload.paidAt);
-  }
-  if (payload.method !== undefined) {
-    payment.method = payload.method;
   }
   if (payload.notes !== undefined) {
     payment.notes = payload.notes;
   }
 
   await payment.save();
-  const updatedPayment = await Payment.findById(payment._id)
-    .populate('userId', 'name surname paymentOption paymentAmount')
+  const updatedPayment = await CustomerPayment.findById(payment._id)
+    .populate('projectId', 'description address')
+    .populate('customerId', 'fullName address email phone')
     .exec();
-  return sendSuccess(res, toPaymentResponse(updatedPayment));
+  return sendSuccess(res, toCustomerPaymentResponse(updatedPayment));
 }
 
 module.exports = withErrorHandling(requireAuth(handler));

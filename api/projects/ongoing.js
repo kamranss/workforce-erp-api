@@ -4,12 +4,32 @@ const { withErrorHandling } = require('../../src/helpers/handler');
 const { decodeCursor, encodeCursor, parseLimit } = require('../../src/helpers/users');
 const { requireAuth } = require('../../src/middleware/auth');
 const { sendError, sendMethodNotAllowed, sendSuccess } = require('../../src/helpers/response');
+const { Customer } = require('../../src/models/Customer');
 const { Project } = require('../../src/models/Project');
 
 function toOngoingProjectResponse(doc) {
+  const customerDoc =
+    doc.customerId && typeof doc.customerId === 'object' && doc.customerId._id
+      ? doc.customerId
+      : null;
+
   return {
     id: String(doc._id),
     description: doc.description,
+    customerId: customerDoc
+      ? String(customerDoc._id)
+      : doc.customerId
+      ? String(doc.customerId)
+      : null,
+    customer: customerDoc
+      ? {
+          id: String(customerDoc._id),
+          fullName: customerDoc.fullName || null,
+          address: customerDoc.address || null,
+          email: customerDoc.email || null,
+          phone: customerDoc.phone || null
+        }
+      : null,
     address: {
       raw: doc.address?.raw,
       normalized: doc.address?.normalized
@@ -63,6 +83,7 @@ async function handler(req, res) {
   }
 
   const docs = await Project.find(query)
+    .populate('customerId', 'fullName address email phone')
     .sort({ createdAt: -1, _id: -1 })
     .limit(limit + 1)
     .exec();
