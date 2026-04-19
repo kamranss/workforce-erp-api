@@ -16,7 +16,7 @@ async function handler(req, res) {
 
   await connectToDatabase();
 
-  const [statusAgg, totalActive, totalAll] = await Promise.all([
+  const [statusAgg, totalAll] = await Promise.all([
     Project.aggregate([
       {
         $group: {
@@ -25,13 +25,13 @@ async function handler(req, res) {
         }
       }
     ]),
-    Project.countDocuments({ isActive: true }),
     Project.countDocuments({})
   ]);
 
   const counts = {
     waiting: 0,
     ongoing: 0,
+    review: 0,
     finished: 0,
     canceled: 0
   };
@@ -44,7 +44,6 @@ async function handler(req, res) {
 
   return sendSuccess(res, {
     ...counts,
-    totalActive: Number(totalActive || 0),
     totalAll: Number(totalAll || 0)
   });
 }

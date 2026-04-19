@@ -247,13 +247,33 @@ async function recomputeDailyBreakAllocation({
   }
 
   if (closedEntries.length > 0) {
-    // Apply lunch deduction once per local day to the first closed entry only.
-    const firstClosedEntry = closedEntries[0];
-    const firstRawMinutes = firstClosedEntry.rawMinutes || 0;
-    if (firstRawMinutes >= 180) {
-      const allocatedBreak = Math.min(60, firstRawMinutes);
-      firstClosedEntry.breakMinutes = allocatedBreak;
-      firstClosedEntry.minutesWorked = Math.max(0, firstRawMinutes - allocatedBreak);
+    // Apply lunch deduction once per local day based on total closed work.
+    const totalClosedRawMinutes = closedEntries.reduce(
+      (sum, entry) => sum + (entry.rawMinutes || 0),
+      0
+    );
+    const breakMinutesToAllocate = Math.min(
+      60,
+      Math.max(0, totalClosedRawMinutes - 240)
+    );
+
+    if (breakMinutesToAllocate > 0) {
+      let remainingBreakToAllocate = breakMinutesToAllocate;
+
+      // Allocate on latest closed entries first so final daily totals are stable
+      // without depending on any specific single entry duration.
+      for (let i = closedEntries.length - 1; i >= 0 && remainingBreakToAllocate > 0; i -= 1) {
+        const entry = closedEntries[i];
+        const rawMinutes = entry.rawMinutes || 0;
+        if (rawMinutes <= 0) {
+          continue;
+        }
+
+        const allocatedBreak = Math.min(remainingBreakToAllocate, rawMinutes);
+        entry.breakMinutes = allocatedBreak;
+        entry.minutesWorked = Math.max(0, rawMinutes - allocatedBreak);
+        remainingBreakToAllocate -= allocatedBreak;
+      }
     }
   }
 

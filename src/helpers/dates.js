@@ -128,6 +128,59 @@ function getMonthRange(baseDate = new Date(), timeZone = 'America/Chicago') {
   };
 }
 
+function getYearRange(year, timeZone = 'America/Chicago') {
+  const from = zonedMidnightUtc(year, 1, 1, timeZone);
+  const nextFrom = zonedMidnightUtc(year + 1, 1, 1, timeZone);
+  const to = new Date(nextFrom.getTime() - 1);
+
+  return {
+    from,
+    to,
+    label: String(year)
+  };
+}
+
+function getQuarterRange(year, quarter, timeZone = 'America/Chicago') {
+  const quarterMonthStarts = {
+    1: 1,
+    2: 4,
+    3: 7,
+    4: 10
+  };
+
+  const monthStart = quarterMonthStarts[quarter];
+  const from = zonedMidnightUtc(year, monthStart, 1, timeZone);
+  const nextQuarterYear = quarter === 4 ? year + 1 : year;
+  const nextQuarterMonth = quarter === 4 ? 1 : monthStart + 3;
+  const nextFrom = zonedMidnightUtc(nextQuarterYear, nextQuarterMonth, 1, timeZone);
+  const to = new Date(nextFrom.getTime() - 1);
+
+  return {
+    from,
+    to,
+    label: `Q${quarter} ${year}`
+  };
+}
+
+function getMonthRangeForYearMonth(year, month, timeZone = 'America/Chicago') {
+  const from = zonedMidnightUtc(year, month, 1, timeZone);
+  const nextMonthYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextFrom = zonedMidnightUtc(nextMonthYear, nextMonth, 1, timeZone);
+  const to = new Date(nextFrom.getTime() - 1);
+
+  const monthLabel = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    month: 'long'
+  }).format(from);
+
+  return {
+    from,
+    to,
+    label: `${monthLabel} ${year}`
+  };
+}
+
 function getPreviousMonthRange(baseDate = new Date(), timeZone = 'America/Chicago') {
   const parts = getZonedDateParts(baseDate, timeZone);
   const prevYear = parts.month === 1 ? parts.year - 1 : parts.year;
@@ -228,6 +281,10 @@ function parseHoursRange(query, timeZone = 'America/Chicago') {
 
 module.exports = {
   getChicagoDayRange,
+  getMonthRange,
+  getMonthRangeForYearMonth,
+  getQuarterRange,
+  getYearRange,
   parseRangeWithDefaultDays,
   parseHoursRange
 };

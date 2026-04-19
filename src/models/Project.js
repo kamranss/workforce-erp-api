@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const PROJECT_STATUSES = ['waiting', 'ongoing', 'finished', 'canceled'];
+const PROJECT_STATUSES = ['waiting', 'ongoing', 'review', 'finished', 'canceled'];
 
 const projectSchema = new mongoose.Schema(
   {
@@ -28,6 +28,12 @@ const projectSchema = new mongoose.Schema(
       type: Number,
       min: 0
     },
+    referralPercent: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: null
+    },
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Customer',
@@ -52,6 +58,19 @@ const projectSchema = new mongoose.Schema(
     },
     estimatedStartAt: {
       type: Date
+    },
+    actualStartAt: {
+      type: Date,
+      default: null
+    },
+    actualEndAt: {
+      type: Date,
+      default: null
+    },
+    actualDurationDays: {
+      type: Number,
+      default: null,
+      min: 0
     },
     locationKey: {
       type: String,
@@ -85,7 +104,7 @@ const projectSchema = new mongoose.Schema(
     },
     geoRadiusMeters: {
       type: Number,
-      default: 500,
+      default: 600,
       min: 0
     }
   },

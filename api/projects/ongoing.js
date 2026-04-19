@@ -4,8 +4,8 @@ const { withErrorHandling } = require('../../src/helpers/handler');
 const { decodeCursor, encodeCursor, parseLimit } = require('../../src/helpers/users');
 const { requireAuth } = require('../../src/middleware/auth');
 const { sendError, sendMethodNotAllowed, sendSuccess } = require('../../src/helpers/response');
-const { Customer } = require('../../src/models/Customer');
 const { Project } = require('../../src/models/Project');
+const MIN_GEOFENCE_RADIUS_METERS = 600;
 
 function toOngoingProjectResponse(doc) {
   const customerDoc =
@@ -38,7 +38,10 @@ function toOngoingProjectResponse(doc) {
       lat: doc.geo?.lat,
       lng: doc.geo?.lng
     },
-    geoRadiusMeters: doc.geoRadiusMeters ?? 500,
+    geoRadiusMeters:
+      typeof doc.geoRadiusMeters === 'number' && Number.isFinite(doc.geoRadiusMeters)
+        ? Math.max(doc.geoRadiusMeters, MIN_GEOFENCE_RADIUS_METERS)
+        : MIN_GEOFENCE_RADIUS_METERS,
     quoteNumber: doc.quoteNumber,
     quoteAmount: doc.quoteAmount
   };
@@ -59,7 +62,7 @@ async function handler(req, res) {
 
   const query = {
     isActive: true,
-    status: { $in: ['waiting', 'ongoing', 'finished'] }
+    status: { $in: ['waiting', 'ongoing', 'review'] }
   };
 
   if (req.query.q) {

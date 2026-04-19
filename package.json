@@ -13,6 +13,7 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^10.0.1",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.1"

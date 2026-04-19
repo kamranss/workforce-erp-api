@@ -1,3 +1,10 @@
+function toLabelCase(value) {
+  return String(value || '')
+    .split('_')
+    .join(' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function toExpenseResponse(doc) {
   const projectDoc =
     doc.projectId && typeof doc.projectId === 'object' && doc.projectId._id
@@ -6,7 +13,7 @@ function toExpenseResponse(doc) {
   const scope = doc.scope || 'project';
   const type = doc.type || 'unknown';
   const scopeLabel = scope === 'company' ? 'Company Based' : 'Project Based';
-  const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+  const typeLabel = toLabelCase(type);
 
   return {
     id: String(doc._id),

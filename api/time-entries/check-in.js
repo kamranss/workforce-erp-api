@@ -3,17 +3,26 @@ const { haversineDistanceMeters, isWithinRadius } = require('../../src/helpers/g
 const { withErrorHandling } = require('../../src/helpers/handler');
 const { ROLE_USER } = require('../../src/helpers/roles');
 const { parseJsonBody } = require('../../src/helpers/users');
+const { sendSecurityAlert, buildCheckInAlertPayload } = require('../../src/helpers/securityAlerts');
 const { toTimeEntryResponse } = require('../../src/helpers/timeEntries');
 const { requireAuth } = require('../../src/middleware/auth');
 const { sendMethodNotAllowed, sendError, sendSuccess } = require('../../src/helpers/response');
+const { Customer } = require('../../src/models/Customer');
 const { Project } = require('../../src/models/Project');
 const { TimeEntry } = require('../../src/models/TimeEntry');
 const { User } = require('../../src/models/User');
 const { validateCheckInPayload } = require('../../src/validation/timeEntryValidation');
-const ALLOWED_CHECK_STATUSES = new Set(['waiting', 'ongoing', 'finished']);
+void Customer;
+const ALLOWED_CHECK_STATUSES = new Set(['waiting', 'ongoing', 'review']);
+const MIN_GEOFENCE_RADIUS_METERS = 600;
 
 function getProjectRadiusMeters(project) {
-  return typeof project.geoRadiusMeters === 'number' ? project.geoRadiusMeters : 500;
+  const configured =
+    typeof project.geoRadiusMeters === 'number' && Number.isFinite(project.geoRadiusMeters)
+      ? project.geoRadiusMeters
+      : MIN_GEOFENCE_RADIUS_METERS;
+
+  return Math.max(configured, MIN_GEOFENCE_RADIUS_METERS);
 }
 
 function projectCanReceiveEntry(project) {
@@ -63,7 +72,9 @@ async function handler(req, res) {
 
   const [user, directProject] = await Promise.all([
     User.findById(req.auth.userId).exec(),
-    selectedProjectId ? Project.findById(selectedProjectId).exec() : Promise.resolve(null)
+    selectedProjectId
+      ? Project.findById(selectedProjectId).populate('customerId', 'fullName address email phone').exec()
+      : Promise.resolve(null)
   ]);
 
   let project = directProject;
@@ -75,7 +86,9 @@ async function handler(req, res) {
       status: { $in: [...ALLOWED_CHECK_STATUSES] },
       'geo.lat': { $type: 'number' },
       'geo.lng': { $type: 'number' }
-    }).exec();
+    })
+      .populate('customerId', 'fullName address email phone')
+      .exec();
 
     let best = null;
     for (const candidate of candidates) {
@@ -116,7 +129,7 @@ async function handler(req, res) {
       res,
       400,
       'PROJECT_NOT_ELIGIBLE',
-      'Project must be active, in waiting/ongoing/finished status, and have geo.lat/lng.'
+      'Project must be active, in waiting/ongoing/review status, and have geo.lat/lng.'
     );
   }
 
@@ -167,6 +180,34 @@ async function handler(req, res) {
       addrIn: payload.addrIn,
       notes: payload.notes
     });
+
+    // First successful check-in starts the project lifecycle.
+    if (project.status === 'waiting') {
+      const now = new Date();
+      const setStarted = await Project.updateOne(
+        { _id: project._id, status: 'waiting', actualStartAt: null },
+        { $set: { status: 'ongoing', actualStartAt: now, actualEndAt: null, actualDurationDays: null } }
+      ).exec();
+
+      if (setStarted.modifiedCount === 0) {
+        await Project.updateOne(
+          { _id: project._id, status: 'waiting' },
+          { $set: { status: 'ongoing', actualEndAt: null, actualDurationDays: null } }
+        ).exec();
+      }
+    }
+    try {
+      await sendSecurityAlert(
+        buildCheckInAlertPayload({
+          req,
+          user,
+          project,
+          entry
+        })
+      );
+    } catch (error) {
+      console.warn('[security-alert] delivery failed:', error?.message || error);
+    }
 
     return sendSuccess(
       res,

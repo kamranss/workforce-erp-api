@@ -2,7 +2,13 @@ const mongoose = require('mongoose');
 const { connectToDatabase } = require('../../src/db/mongo');
 const { withErrorHandling } = require('../../src/helpers/handler');
 const { parseJsonBody } = require('../../src/helpers/users');
-const { toProjectResponse, applyProjectPatch, enrichProjectPayload } = require('../../src/helpers/projects');
+const {
+  toProjectResponse,
+  applyProjectPatch,
+  syncProjectActualDurationDays,
+  enrichProjectPayload
+} = require('../../src/helpers/projects');
+const { syncProjectReferralExpense } = require('../../src/helpers/referralExpenses');
 const { isAdminOrSuperAdmin, isSuperAdmin } = require('../../src/helpers/roles');
 const { requireAuth } = require('../../src/middleware/auth');
 const { sendMethodNotAllowed, sendError, sendSuccess } = require('../../src/helpers/response');
@@ -84,6 +90,7 @@ async function handler(req, res) {
     }
   }
 
+  const statusBefore = project.status;
   applyProjectPatch(project, payload);
 
   if (payload.address && payload.address.raw !== undefined) {
@@ -148,7 +155,28 @@ async function handler(req, res) {
     );
   }
 
+  if (statusBefore !== 'finished' && project.status === 'finished') {
+    // Each transition into finished overwrites actual end timestamp.
+    project.actualStartAt = project.actualStartAt || new Date();
+    project.actualEndAt = new Date();
+  } else if (statusBefore === 'finished' && project.status !== 'finished') {
+    project.actualEndAt = null;
+  }
+
+  if (statusBefore !== 'ongoing' && project.status === 'ongoing') {
+    project.actualStartAt = project.actualStartAt || new Date();
+    if (project.actualEndAt) {
+      project.actualEndAt = null;
+    }
+  }
+
+  syncProjectActualDurationDays(project);
+
   await project.save();
+  await syncProjectReferralExpense({
+    project,
+    actorUserId: req.auth.userId
+  });
   const updatedProject = await Project.findById(project._id)
     .populate('customerId', 'fullName address email phone')
     .exec();

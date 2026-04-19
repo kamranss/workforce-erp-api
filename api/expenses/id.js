@@ -8,10 +8,15 @@ const { requireAuth } = require('../../src/middleware/auth');
 const { sendError, sendMethodNotAllowed, sendSuccess } = require('../../src/helpers/response');
 const { Expense, EXPENSE_SCOPES, EXPENSE_TYPES } = require('../../src/models/Expense');
 const { Project } = require('../../src/models/Project');
+const { REFERRAL_EXPENSE_TYPE } = require('../../src/helpers/referralExpenses');
 const { validatePatchExpensePayload } = require('../../src/validation/expenseValidation');
 
 function getRequestedId(req) {
   return typeof req.query.id === 'string' && req.query.id ? req.query.id : null;
+}
+
+function formatExpenseTypesList() {
+  return EXPENSE_TYPES.join(', ');
 }
 
 async function handler(req, res) {
@@ -47,6 +52,15 @@ async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
+    if (expense.type === REFERRAL_EXPENSE_TYPE) {
+      return sendError(
+        res,
+        400,
+        'VALIDATION_ERROR',
+        'Referral expenses are managed automatically from project referral settings and cannot be deleted manually.'
+      );
+    }
+
     if (!isSuperAdmin(req.auth.role)) {
       return sendError(res, 403, 'FORBIDDEN', 'Only superAdmin can delete expenses.');
     }
@@ -68,8 +82,31 @@ async function handler(req, res) {
     return sendError(res, 400, 'VALIDATION_ERROR', 'Invalid expense update payload.', details);
   }
 
+  if (expense.type === REFERRAL_EXPENSE_TYPE) {
+    return sendError(
+      res,
+      400,
+      'VALIDATION_ERROR',
+      'Referral expenses are managed automatically from project referral settings and cannot be updated manually.'
+    );
+  }
+
+  if (payload.type === REFERRAL_EXPENSE_TYPE) {
+    return sendError(
+      res,
+      400,
+      'VALIDATION_ERROR',
+      'Referral expenses are managed automatically from project referral settings and cannot be assigned manually.'
+    );
+  }
+
   if (payload.type !== undefined && !EXPENSE_TYPES.includes(payload.type)) {
-    return sendError(res, 400, 'VALIDATION_ERROR', 'type must be one of: material, damage, unknown, other.');
+    return sendError(
+      res,
+      400,
+      'VALIDATION_ERROR',
+      `type must be one of: ${formatExpenseTypesList()}.`
+    );
   }
   if (payload.scope !== undefined && !EXPENSE_SCOPES.includes(payload.scope)) {
     return sendError(res, 400, 'VALIDATION_ERROR', 'scope must be one of: project, company.');

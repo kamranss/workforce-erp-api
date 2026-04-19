@@ -69,29 +69,8 @@ async function main() {
       name: 'Hasan',
       surname: 'El Muhammed',
       email: 'hasan36x@icloud.com',
-      passCode: '615084',
+      passCode: '123456',
       paymentAmount: 28
-    },
-    {
-      name: 'Oscar',
-      surname: 'Ramirez',
-      email: 'silvia_pollito@live.com',
-      passCode: '854633',
-      paymentAmount: 20
-    },
-    {
-      name: 'Mehmet',
-      surname: 'Oglu',
-      email: 'moglu524@gmail.com',
-      passCode: '424242',
-      paymentAmount: 30
-    },
-    {
-      name: 'Vilson',
-      surname: 'Xavyer',
-      email: 'wilsonfresneda03@gmail.com',
-      passCode: '843910',
-      paymentAmount: 25
     }
   ];
 

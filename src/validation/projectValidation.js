@@ -98,7 +98,7 @@ function validateCreateProjectPayload(payload) {
   }
 
   if (payload.status !== undefined && !PROJECT_STATUSES.includes(payload.status)) {
-    details.push('status must be one of: waiting, ongoing, finished, canceled.');
+    details.push('status must be one of: waiting, ongoing, review, finished, canceled.');
   }
 
   if (payload.isActive !== undefined && typeof payload.isActive !== 'boolean') {
@@ -114,6 +114,13 @@ function validateCreateProjectPayload(payload) {
     (!isFiniteNumber(payload.quoteAmount) || payload.quoteAmount < 0)
   ) {
     details.push('quoteAmount must be a valid number greater than or equal to 0.');
+  }
+  if (
+    payload.referralPercent !== undefined &&
+    payload.referralPercent !== null &&
+    (!isFiniteNumber(payload.referralPercent) || payload.referralPercent < 0 || payload.referralPercent > 100)
+  ) {
+    details.push('referralPercent must be a valid number between 0 and 100 when provided.');
   }
   if (payload.customerId !== undefined && payload.customerId !== null && !isValidObjectId(payload.customerId)) {
     details.push('customerId must be a valid ObjectId when provided.');
@@ -145,6 +152,20 @@ function validateCreateProjectPayload(payload) {
     !isValidDateValue(payload.estimatedStartAt)
   ) {
     details.push('estimatedStartAt must be a valid date when provided.');
+  }
+  if (
+    payload.actualStartAt !== undefined &&
+    payload.actualStartAt !== null &&
+    !isValidDateValue(payload.actualStartAt)
+  ) {
+    details.push('actualStartAt must be a valid date when provided.');
+  }
+  if (
+    payload.actualEndAt !== undefined &&
+    payload.actualEndAt !== null &&
+    !isValidDateValue(payload.actualEndAt)
+  ) {
+    details.push('actualEndAt must be a valid date when provided.');
   }
 
   if (
@@ -181,7 +202,7 @@ function validatePatchProjectPayload(payload) {
   }
 
   if (payload.status !== undefined && !PROJECT_STATUSES.includes(payload.status)) {
-    details.push('status must be one of: waiting, ongoing, finished, canceled.');
+    details.push('status must be one of: waiting, ongoing, review, finished, canceled.');
   }
 
   if (payload.isActive !== undefined && typeof payload.isActive !== 'boolean') {
@@ -197,6 +218,13 @@ function validatePatchProjectPayload(payload) {
     (!isFiniteNumber(payload.quoteAmount) || payload.quoteAmount < 0)
   ) {
     details.push('quoteAmount must be a valid number greater than or equal to 0.');
+  }
+  if (
+    payload.referralPercent !== undefined &&
+    payload.referralPercent !== null &&
+    (!isFiniteNumber(payload.referralPercent) || payload.referralPercent < 0 || payload.referralPercent > 100)
+  ) {
+    details.push('referralPercent must be a valid number between 0 and 100 when provided.');
   }
   if (payload.customerId !== undefined && payload.customerId !== null && !isValidObjectId(payload.customerId)) {
     details.push('customerId must be a valid ObjectId or null when provided.');
@@ -228,6 +256,20 @@ function validatePatchProjectPayload(payload) {
     !isValidDateValue(payload.estimatedStartAt)
   ) {
     details.push('estimatedStartAt must be a valid date when provided.');
+  }
+  if (
+    payload.actualStartAt !== undefined &&
+    payload.actualStartAt !== null &&
+    !isValidDateValue(payload.actualStartAt)
+  ) {
+    details.push('actualStartAt must be a valid date when provided.');
+  }
+  if (
+    payload.actualEndAt !== undefined &&
+    payload.actualEndAt !== null &&
+    !isValidDateValue(payload.actualEndAt)
+  ) {
+    details.push('actualEndAt must be a valid date when provided.');
   }
 
   if (

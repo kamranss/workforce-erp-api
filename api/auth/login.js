@@ -3,7 +3,9 @@ const { config } = require('../../src/config/env');
 const { connectToDatabase } = require('../../src/db/mongo');
 const { withErrorHandling } = require('../../src/helpers/handler');
 const { buildPassCodeLookup, comparePassCode } = require('../../src/helpers/passcode');
+const { ROLE_SUPER_ADMIN } = require('../../src/helpers/roles');
 const { parseJsonBody, toUserResponse } = require('../../src/helpers/users');
+const { sendSecurityAlert, buildLoginAlertPayload } = require('../../src/helpers/securityAlerts');
 const { sendMethodNotAllowed, sendError, sendSuccess } = require('../../src/helpers/response');
 const { User } = require('../../src/models/User');
 const { validateLoginPayload } = require('../../src/validation/userValidation');
@@ -51,6 +53,18 @@ async function handler(req, res) {
     config.jwtSecret,
     { expiresIn: config.jwtExpiresIn }
   );
+  if (user.role !== ROLE_SUPER_ADMIN) {
+    try {
+      await sendSecurityAlert(
+        buildLoginAlertPayload({
+          req,
+          user
+        })
+      );
+    } catch (error) {
+      console.warn('[security-alert] delivery failed:', error?.message || error);
+    }
+  }
 
   return sendSuccess(res, {
     token,

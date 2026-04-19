@@ -5,6 +5,10 @@ function isFiniteNumber(value) {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function formatExpenseTypesList() {
+  return EXPENSE_TYPES.join(', ');
+}
+
 function validateCreateExpensePayload(payload) {
   const details = [];
 
@@ -26,7 +30,7 @@ function validateCreateExpensePayload(payload) {
   }
 
   if (!EXPENSE_TYPES.includes(payload.type)) {
-    details.push('type is required and must be one of: material, damage, unknown, other.');
+    details.push(`type is required and must be one of: ${formatExpenseTypesList()}.`);
   }
 
   if (!isFiniteNumber(payload.amount) || payload.amount <= 0) {
@@ -65,7 +69,7 @@ function validatePatchExpensePayload(payload) {
   }
 
   if (payload.type !== undefined && !EXPENSE_TYPES.includes(payload.type)) {
-    details.push('type must be one of: material, damage, unknown, other.');
+    details.push(`type must be one of: ${formatExpenseTypesList()}.`);
   }
 
   if (payload.amount !== undefined && (!isFiniteNumber(payload.amount) || payload.amount <= 0)) {

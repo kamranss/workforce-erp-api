@@ -37,7 +37,12 @@ async function handler(req, res) {
 
   if (req.query.status !== undefined) {
     if (!PROJECT_STATUSES.includes(req.query.status)) {
-      return sendError(res, 400, 'VALIDATION_ERROR', 'status must be one of: waiting, ongoing, finished, canceled.');
+      return sendError(
+        res,
+        400,
+        'VALIDATION_ERROR',
+        'status must be one of: waiting, ongoing, review, finished, canceled.'
+      );
     }
     query.status = req.query.status;
   }

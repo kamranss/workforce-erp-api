@@ -9,6 +9,7 @@ const { requireAuth } = require('../../src/middleware/auth');
 const { sendError, sendMethodNotAllowed, sendSuccess } = require('../../src/helpers/response');
 const { Expense, EXPENSE_SCOPES } = require('../../src/models/Expense');
 const { Project } = require('../../src/models/Project');
+const { REFERRAL_EXPENSE_TYPE } = require('../../src/helpers/referralExpenses');
 const { validateCreateExpensePayload } = require('../../src/validation/expenseValidation');
 
 async function handler(req, res) {
@@ -112,6 +113,14 @@ async function handler(req, res) {
   }
 
   const scope = payload.scope || 'project';
+  if (payload.type === REFERRAL_EXPENSE_TYPE) {
+    return sendError(
+      res,
+      400,
+      'VALIDATION_ERROR',
+      'Referral expenses are managed automatically from project referral settings and cannot be created manually.'
+    );
+  }
 
   let projectId = null;
   if (scope === 'project') {

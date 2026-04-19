@@ -47,14 +47,23 @@ function validateCheckInPayload(payload) {
   return details;
 }
 
-function validateCheckOutPayload(payload) {
+function validateCheckOutPayload(payload, options = {}) {
   const details = [];
+  const allowMissingProjectIdOut = options.allowMissingProjectIdOut === true;
 
   if (!payload || typeof payload !== 'object') {
     return ['Body must be a JSON object.'];
   }
 
-  if (!isValidObjectId(payload.projectIdOut)) {
+  if (allowMissingProjectIdOut) {
+    if (
+      payload.projectIdOut !== undefined &&
+      payload.projectIdOut !== null &&
+      !isValidObjectId(payload.projectIdOut)
+    ) {
+      details.push('projectIdOut must be a valid ObjectId when provided.');
+    }
+  } else if (!isValidObjectId(payload.projectIdOut)) {
     details.push('projectIdOut is required and must be a valid ObjectId.');
   }
 

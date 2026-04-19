@@ -1,6 +1,8 @@
 const { PROJECT_STATUSES } = require('../models/Project');
 const { geocodeAddress } = require('./geocoding');
 const { isValidObjectId } = require('./timeEntries');
+const MIN_GEOFENCE_RADIUS_METERS = 600;
+const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function toTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -20,6 +22,43 @@ function buildLocationKey(rawAddress, normalizedAddress) {
   return key || 'site';
 }
 
+function toRoundedMoney(value) {
+  return Number((Number(value || 0)).toFixed(2));
+}
+
+function calculateReferralAmount(quoteAmount, referralPercent) {
+  if (quoteAmount === null || quoteAmount === undefined || !Number.isFinite(Number(quoteAmount))) {
+    return null;
+  }
+
+  const quote = Number(quoteAmount);
+  const percent =
+    referralPercent === null || referralPercent === undefined || !Number.isFinite(Number(referralPercent))
+      ? 0
+      : Number(referralPercent);
+
+  return toRoundedMoney((quote * percent) / 100);
+}
+
+function calculateActualDurationDays(actualStartAt, actualEndAt) {
+  if (!actualStartAt || !actualEndAt) {
+    return null;
+  }
+
+  const startMillis = new Date(actualStartAt).getTime();
+  const endMillis = new Date(actualEndAt).getTime();
+  if (Number.isNaN(startMillis) || Number.isNaN(endMillis)) {
+    return null;
+  }
+
+  const diffDays = Math.max(0, (endMillis - startMillis) / MILLIS_PER_DAY);
+  return Number(diffDays.toFixed(2));
+}
+
+function syncProjectActualDurationDays(project) {
+  project.actualDurationDays = calculateActualDurationDays(project.actualStartAt, project.actualEndAt);
+}
+
 function hasGeo(payload) {
   return (
     payload &&
@@ -29,6 +68,14 @@ function hasGeo(payload) {
     typeof payload.geo.lng === 'number' &&
     Number.isFinite(payload.geo.lng)
   );
+}
+
+function toEffectiveGeoRadiusMeters(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return MIN_GEOFENCE_RADIUS_METERS;
+  }
+
+  return Math.max(value, MIN_GEOFENCE_RADIUS_METERS);
 }
 
 async function enrichProjectPayload(payload, options = {}) {
@@ -90,6 +137,10 @@ function toProjectResponse(projectDoc) {
       ? projectDoc.customerId
       : null;
 
+  const referralAmount = calculateReferralAmount(projectDoc.quoteAmount, projectDoc.referralPercent);
+  const netQuoteAfterReferral =
+    referralAmount === null ? null : toRoundedMoney(Number(projectDoc.quoteAmount || 0) - referralAmount);
+
   return {
     id: String(projectDoc._id),
     description: projectDoc.description,
@@ -97,6 +148,9 @@ function toProjectResponse(projectDoc) {
     isActive: projectDoc.isActive,
     quoteNumber: projectDoc.quoteNumber,
     quoteAmount: projectDoc.quoteAmount,
+    referralPercent: projectDoc.referralPercent,
+    referralAmount,
+    netQuoteAfterReferral,
     customerId: customerDoc
       ? String(customerDoc._id)
       : projectDoc.customerId
@@ -116,6 +170,9 @@ function toProjectResponse(projectDoc) {
     clientPhone: projectDoc.clientPhone || null,
     clientEmail: projectDoc.clientEmail || null,
     estimatedStartAt: projectDoc.estimatedStartAt,
+    actualStartAt: projectDoc.actualStartAt,
+    actualEndAt: projectDoc.actualEndAt,
+    actualDurationDays: projectDoc.actualDurationDays,
     locationKey: projectDoc.locationKey,
     address: {
       raw: projectDoc.address?.raw,
@@ -127,7 +184,7 @@ function toProjectResponse(projectDoc) {
       lat: projectDoc.geo?.lat,
       lng: projectDoc.geo?.lng
     },
-    geoRadiusMeters: projectDoc.geoRadiusMeters ?? 500,
+    geoRadiusMeters: toEffectiveGeoRadiusMeters(projectDoc.geoRadiusMeters),
     createdAt: projectDoc.createdAt,
     updatedAt: projectDoc.updatedAt
   };
@@ -163,6 +220,7 @@ function sanitizeCreateProjectPayload(payload) {
     isActive: payload.isActive === undefined ? true : payload.isActive,
     quoteNumber: payload.quoteNumber === undefined ? undefined : payload.quoteNumber.trim(),
     quoteAmount: payload.quoteAmount,
+    referralPercent: payload.referralPercent === undefined ? undefined : payload.referralPercent,
     customerId: payload.customerId === undefined ? undefined : payload.customerId,
     materials:
       payload.materials === undefined
@@ -189,6 +247,8 @@ function sanitizeCreateProjectPayload(payload) {
         ? null
         : payload.clientEmail.trim().toLowerCase(),
     estimatedStartAt: payload.estimatedStartAt ? new Date(payload.estimatedStartAt) : undefined,
+    actualStartAt: payload.actualStartAt ? new Date(payload.actualStartAt) : undefined,
+    actualEndAt: payload.actualEndAt ? new Date(payload.actualEndAt) : undefined,
     locationKey: payload.locationKey ? payload.locationKey.trim() : buildLocationKey(payload.address.raw, payload.address.normalized),
     address: {
       raw: payload.address.raw.trim(),
@@ -226,6 +286,9 @@ function applyProjectPatch(project, payload) {
   if (payload.quoteAmount !== undefined) {
     project.quoteAmount = payload.quoteAmount;
   }
+  if (payload.referralPercent !== undefined) {
+    project.referralPercent = payload.referralPercent;
+  }
   if (payload.customerId !== undefined) {
     project.customerId = payload.customerId;
   }
@@ -245,6 +308,12 @@ function applyProjectPatch(project, payload) {
 
   if (payload.estimatedStartAt !== undefined) {
     project.estimatedStartAt = payload.estimatedStartAt ? new Date(payload.estimatedStartAt) : null;
+  }
+  if (payload.actualStartAt !== undefined) {
+    project.actualStartAt = payload.actualStartAt ? new Date(payload.actualStartAt) : null;
+  }
+  if (payload.actualEndAt !== undefined) {
+    project.actualEndAt = payload.actualEndAt ? new Date(payload.actualEndAt) : null;
   }
 
   if (payload.locationKey !== undefined) {
@@ -293,7 +362,7 @@ function buildProjectListFilters(query) {
 
   if (query.status !== undefined) {
     if (!PROJECT_STATUSES.includes(query.status)) {
-      return { error: 'status must be one of: waiting, ongoing, finished, canceled.' };
+      return { error: 'status must be one of: waiting, ongoing, review, finished, canceled.' };
     }
 
     conditions.push({ status: query.status });
@@ -347,6 +416,7 @@ module.exports = {
   toProjectResponse,
   sanitizeCreateProjectPayload,
   applyProjectPatch,
+  syncProjectActualDurationDays,
   buildProjectListFilters,
   enrichProjectPayload,
   buildLocationKey

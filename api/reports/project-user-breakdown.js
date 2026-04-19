@@ -48,14 +48,7 @@ async function handler(req, res) {
         userId: 1,
         minutesWorked: { $ifNull: ['$minutesWorked', 0] },
         hourlyRateAtTime: { $ifNull: ['$hourlyRateAtTime', 0] },
-        projectRefs: {
-          $setUnion: [
-            [{ $ifNull: ['$projectIdIn', '$projectId'] }],
-            {
-              $cond: [{ $ne: ['$projectIdOut', null] }, ['$projectIdOut'], []]
-            }
-          ]
-        }
+        projectRefs: [{ $ifNull: ['$projectIdIn', '$projectId'] }]
       }
     },
     { $unwind: '$projectRefs' },

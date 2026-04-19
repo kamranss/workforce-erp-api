@@ -1,6 +1,23 @@
 const mongoose = require('mongoose');
 
-const EXPENSE_TYPES = ['material', 'damage', 'unknown', 'other'];
+const EXPENSE_TYPES = [
+  'gas',
+  'utility',
+  'maintenance',
+  'vehicle',
+  'food',
+  'tools',
+  'city_expenses',
+  'store',
+  'storage',
+  'archcloset',
+  'mobile',
+  'referral',
+  'material',
+  'damage',
+  'unknown',
+  'other'
+];
 const EXPENSE_SCOPES = ['project', 'company'];
 
 const expenseSchema = new mongoose.Schema(

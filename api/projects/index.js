@@ -10,9 +10,11 @@ const {
 const {
   toProjectResponse,
   sanitizeCreateProjectPayload,
+  syncProjectActualDurationDays,
   buildProjectListFilters,
   enrichProjectPayload
 } = require('../../src/helpers/projects');
+const { syncProjectReferralExpense } = require('../../src/helpers/referralExpenses');
 const { isAdminOrSuperAdmin } = require('../../src/helpers/roles');
 const { requireAuth } = require('../../src/middleware/auth');
 const { sendMethodNotAllowed, sendError, sendSuccess } = require('../../src/helpers/response');
@@ -112,7 +114,24 @@ async function handler(req, res) {
     }
   }
 
-  const project = await Project.create(sanitizeCreateProjectPayload(enrichedPayload));
+  const createPayload = sanitizeCreateProjectPayload(enrichedPayload);
+  if (createPayload.status === 'ongoing') {
+    createPayload.actualStartAt = createPayload.actualStartAt || new Date();
+    createPayload.actualEndAt = null;
+  } else if (createPayload.status === 'finished') {
+    createPayload.actualStartAt = createPayload.actualStartAt || new Date();
+    createPayload.actualEndAt = new Date();
+  } else {
+    createPayload.actualStartAt = createPayload.actualStartAt || null;
+    createPayload.actualEndAt = createPayload.actualEndAt || null;
+  }
+  syncProjectActualDurationDays(createPayload);
+
+  const project = await Project.create(createPayload);
+  await syncProjectReferralExpense({
+    project,
+    actorUserId: req.auth.userId
+  });
   const createdProject = await Project.findById(project._id)
     .populate('customerId', 'fullName address email phone')
     .exec();

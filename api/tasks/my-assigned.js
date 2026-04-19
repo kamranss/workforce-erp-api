@@ -65,7 +65,7 @@ async function handler(req, res) {
   }
 
   pipeline.push(
-    { $sort: { dueDateSort: 1, createdAt: -1, _id: -1 } },
+    { $sort: { createdAt: -1, dueDateSort: 1, _id: -1 } },
     { $limit: limit + 1 },
     { $project: { dueDateSort: 0 } }
   );
