@@ -1,7 +1,7 @@
 const { PROJECT_STATUSES } = require('../models/Project');
 const { geocodeAddress } = require('./geocoding');
 const { isValidObjectId } = require('./timeEntries');
-const MIN_GEOFENCE_RADIUS_METERS = 600;
+const MIN_GEOFENCE_RADIUS_METERS = 150;
 const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function toTrimmedString(value) {

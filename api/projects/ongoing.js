@@ -5,7 +5,7 @@ const { decodeCursor, encodeCursor, parseLimit } = require('../../src/helpers/us
 const { requireAuth } = require('../../src/middleware/auth');
 const { sendError, sendMethodNotAllowed, sendSuccess } = require('../../src/helpers/response');
 const { Project } = require('../../src/models/Project');
-const MIN_GEOFENCE_RADIUS_METERS = 600;
+const MIN_GEOFENCE_RADIUS_METERS = 150;
 
 function toOngoingProjectResponse(doc) {
   const customerDoc =

@@ -17,7 +17,7 @@ const { User } = require('../../src/models/User');
 const { validateCheckOutPayload } = require('../../src/validation/timeEntryValidation');
 void Customer;
 const ALLOWED_CHECK_STATUSES = new Set(['waiting', 'ongoing', 'review', 'finished']);
-const MIN_GEOFENCE_RADIUS_METERS = 600;
+const MIN_GEOFENCE_RADIUS_METERS = 150;
 const CHECKOUT_AUTO_PROJECT_FALLBACK_ENABLED = true;
 
 function getProjectRadiusMeters(project) {

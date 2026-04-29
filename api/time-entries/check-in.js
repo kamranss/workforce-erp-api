@@ -14,7 +14,7 @@ const { User } = require('../../src/models/User');
 const { validateCheckInPayload } = require('../../src/validation/timeEntryValidation');
 void Customer;
 const ALLOWED_CHECK_STATUSES = new Set(['waiting', 'ongoing', 'review']);
-const MIN_GEOFENCE_RADIUS_METERS = 600;
+const MIN_GEOFENCE_RADIUS_METERS = 150;
 
 function getProjectRadiusMeters(project) {
   const configured =
